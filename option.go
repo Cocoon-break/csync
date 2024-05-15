@@ -9,7 +9,6 @@ import (
 type config struct {
 	Component      Component
 	DumpPath       string
-	User           string
 	Password       string
 	TargetUrl      string
 	IntervalSecond int
@@ -32,7 +31,7 @@ func (c *config) validate() error {
 	if c.TargetUrl == "" {
 		return errors.New("target url is required")
 	}
-	if c.User == "" || c.Password == "" {
+	if c.Password == "" {
 		return errors.New("basic auth is required")
 	}
 	if c.Component == "" {
@@ -54,7 +53,7 @@ type Option interface {
 	Apply(*config) error
 }
 
-func WithComponentName(name Component) Option {
+func WithComponent(name Component) Option {
 	return optionFunc(func(c *config) error {
 		c.Component = name
 		return nil
@@ -68,9 +67,8 @@ func WithDumpPath(path string) Option {
 	})
 }
 
-func WithBasicAuth(user, password string) Option {
+func WithBasicAuth(password string) Option {
 	return optionFunc(func(c *config) error {
-		c.User = user
 		c.Password = password
 		return nil
 	})

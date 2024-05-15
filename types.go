@@ -7,7 +7,7 @@ type StrategyName string
 type StrategyDetail struct {
 	Id         int    `json:"id"`
 	Alias      string `json:"alias"`
-	Content    []byte `json:"content"`
+	Content    string `json:"content"`
 	ContentMd5 string `json:"content_md5"`
 }
 
@@ -20,7 +20,7 @@ type NotifyData struct {
 
 // request center server to sync strategy body
 type syncReq struct {
-	Hostname       string                  `json:"hostname"`
+	Endpoint       string                  `json:"endpoint"`
 	ComponentName  Component               `json:"component_name"`
 	StrategyMd5Map map[StrategyName]string `json:"strategy_md5_map"`
 }
@@ -31,3 +31,5 @@ type syncResp struct {
 	Msg  string                          `json:"msg"`
 	Data map[StrategyName]StrategyDetail `json:"data"`
 }
+
+const _configNoChanged = "config_no_changed"

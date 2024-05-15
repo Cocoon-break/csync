@@ -11,7 +11,7 @@ go get github.com/Cocoon-break/csync
 ```go
     notifyCh := make(chan NotifyData)
 		cs, err := New(
-			WithComponentName("component"),
+			WithComponent("component"),
 			WithBasicAuth("user", "password"),
 			WithTargetUrl("http://example.com"),
 			WithTagFunc(func() string { return "tag" }),

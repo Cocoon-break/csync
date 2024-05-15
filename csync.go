@@ -2,7 +2,10 @@ package csync
 
 import (
 	"bytes"
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -44,6 +47,7 @@ func (s *sync) Start() {
 		s.notify(NotifyData{
 			StrategyMap: tmpStrategyMap,
 		})
+		s.strategyMap = tmpStrategyMap
 	}
 	// data
 	s.runTicker(s.c.IntervalSecond, s.syncStrategy)
@@ -59,14 +63,26 @@ func (s *sync) syncStrategy() {
 		strategyMd5Map[k] = v.ContentMd5
 	}
 	body := syncReq{
-		Hostname:       s.c.GetTagFunc(),
+		Endpoint:       s.c.GetTagFunc(),
 		ComponentName:  s.c.Component,
 		StrategyMd5Map: strategyMd5Map,
 	}
 	data, _ := json.Marshal(body)
 	notifyData := s.sendRequest(data)
-	if notifyData.Err != nil {
-		s.strategyMap = notifyData.StrategyMap
+	if notifyData.Err == nil {
+		avaMap := make(map[StrategyName]StrategyDetail, len(notifyData.StrategyMap))
+		for k, v := range notifyData.StrategyMap {
+			// find no changed data,fill last data to avaMap
+			if d, ok := s.strategyMap[k]; ok && v.Content == _configNoChanged {
+				avaMap[k] = d
+			}
+			// check md5,if equal,fill to avaMap
+			if v.ContentMd5 == createStringMD5(v.Content) {
+				avaMap[k] = v
+			}
+		}
+		notifyData.StrategyMap = avaMap
+		s.strategyMap = avaMap
 		// ignore error
 		dumpToDisk(s.c.DumpPath, s.strategyMap)
 	}
@@ -109,16 +125,20 @@ func (s *sync) sendRequest(reqBody []byte) (result NotifyData) {
 		return
 	}
 	// set auth and headers
-	req.SetBasicAuth(s.c.User, s.c.Password)
+	req.SetBasicAuth(string(s.c.Component), s.c.Password)
 	req.Header.Set("Component", string(s.c.Component))
 
-	cli := http.Client{}
+	cli := http.Client{Timeout: 30 * time.Second}
 	resp, err := cli.Do(req)
 	if err != nil {
 		result.Err = err
 		return
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		result.Err = fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return
+	}
 
 	respData, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -153,4 +173,10 @@ func dumpToDisk(path string, data map[StrategyName]StrategyDetail) error {
 		return err
 	}
 	return os.WriteFile(path, b, os.ModePerm)
+}
+
+func createStringMD5(message string) string {
+	h := md5.New()
+	h.Write([]byte(message))
+	return hex.EncodeToString(h.Sum(nil))
 }
