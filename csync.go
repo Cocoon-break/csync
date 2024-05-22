@@ -14,6 +14,7 @@ import (
 )
 
 type Syncer interface {
+	i()
 	Start()
 	Stop()
 }
@@ -39,6 +40,8 @@ func New(opts ...Option) (Syncer, error) {
 		strategyMap: make(map[StrategyName]StrategyDetail),
 	}, nil
 }
+
+func (s *sync) i() {}
 
 func (s *sync) Start() {
 	// load last dump file
@@ -84,7 +87,9 @@ func (s *sync) syncStrategy() {
 		notifyData.StrategyMap = avaMap
 		s.strategyMap = avaMap
 		// ignore error
-		dumpToDisk(s.c.DumpPath, s.strategyMap)
+		if err := dumpToDisk(s.c.DumpPath, s.strategyMap); err != nil {
+			fmt.Println("csync dump error:", err)
+		}
 	}
 	s.notify(notifyData)
 }
@@ -122,37 +127,37 @@ func (s *sync) sendRequest(reqBody []byte) (result NotifyData) {
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(reqBody))
 	if err != nil {
 		result.Err = err
-		return
+		return result
 	}
 	// set auth and headers
 	req.SetBasicAuth(string(s.c.Component), s.c.Password)
-	req.Header.Set("Component", string(s.c.Component))
+	req.Header.Set("X-Component", string(s.c.Component))
 
 	cli := http.Client{Timeout: 30 * time.Second}
 	resp, err := cli.Do(req)
 	if err != nil {
 		result.Err = err
-		return
+		return result
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		result.Err = fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-		return
+		return result
 	}
 
 	respData, err := io.ReadAll(resp.Body)
 	if err != nil {
 		result.Err = err
-		return
+		return result
 	}
 	var respBody syncResp
 	err = json.Unmarshal(respData, &respBody)
 	if err != nil {
 		result.Err = err
-		return
+		return result
 	}
 	result.StrategyMap = respBody.Data
-	return
+	return result
 }
 
 func loadFromDisk(path string) map[StrategyName]StrategyDetail {
